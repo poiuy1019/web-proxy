@@ -766,7 +766,6 @@ ssize_t rio_readn(int fd, void *usrbuf, size_t n)
     }
     return (n - nleft);         /* Return >= 0 */
 }
-
 /* $end rio_readn */
 
 /*
@@ -806,8 +805,10 @@ ssize_t rio_writen(int fd, void *usrbuf, size_t n)
 static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
 {
     int cnt;
-    while (rp->rio_cnt <= 0/*buf가 empty하면*/) {  /* Refill if buf is empty */
-	rp->rio_cnt = read(rp->rio_fd, rp->rio_buf, sizeof(rp->rio_buf)); 
+
+    while (rp->rio_cnt <= 0) {  /* Refill if buf is empty */
+	rp->rio_cnt = read(rp->rio_fd, rp->rio_buf, 
+			   sizeof(rp->rio_buf));
 	if (rp->rio_cnt < 0) {
 	    if (errno != EINTR) /* Interrupted by sig handler return */
 		return -1;
@@ -822,10 +823,10 @@ static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
     cnt = n;          
     if (rp->rio_cnt < n)   
 	cnt = rp->rio_cnt;
-    memcpy(usrbuf, rp->rio_bufptr, cnt); /*copy internal buf cnt bytes to usrbuf*/
-    rp->rio_bufptr += cnt; /*internal buffer를 cnt 만큼 move*/
-    rp->rio_cnt -= cnt;/*decrease the count of unread bytes*/
-    return cnt; /*읽은 byte*/
+    memcpy(usrbuf, rp->rio_bufptr, cnt);
+    rp->rio_bufptr += cnt;
+    rp->rio_cnt -= cnt;
+    return cnt;
 }
 /* $end rio_read */
 
@@ -843,16 +844,15 @@ void rio_readinitb(rio_t *rp, int fd)
 
 /*
  * rio_readnb - Robustly read n bytes (buffered)
- * it ensures that the exact (n) bytes are read unless an error or EOF is encountered.
  */
 /* $begin rio_readnb */
 ssize_t rio_readnb(rio_t *rp, void *usrbuf, size_t n) 
 {
-    size_t nleft = n; /*읽어야할 byte*/
-    ssize_t nread; /*읽은 byte*/
-    char *bufp = usrbuf; /*읽고 있는 위치*/
+    size_t nleft = n;
+    ssize_t nread;
+    char *bufp = usrbuf;
     
-    while (nleft > 0) { /*다 읽거나 error 발생까지 반복*/
+    while (nleft > 0) {
 	if ((nread = rio_read(rp, bufp, nleft)) < 0) 
             return -1;          /* errno set by read() */ 
 	else if (nread == 0)
@@ -866,22 +866,21 @@ ssize_t rio_readnb(rio_t *rp, void *usrbuf, size_t n)
 
 /* 
  * rio_readlineb - Robustly read a text line (buffered)
- * reads a line of text from the buffered input, stopping when a '\n' is encountered or maximum length is reached.
  */
 /* $begin rio_readlineb */
-ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen) /*rio_t에서 data를 읽고 usrbuf에 저장*/
+ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen) 
 {
     int n, rc;
     char c, *bufp = usrbuf;
 
-    for (n = 1; n < maxlen; n++) { /*1부터 maxlen-1까지 */
+    for (n = 1; n < maxlen; n++) { 
         if ((rc = rio_read(rp, &c, 1)) == 1) {
 	    *bufp++ = c;
-	    if (c == '\n') {/*c가 newline이면 break*/
-                n++; /*n++ -> \n도 읽은 byte로 count*/
+	    if (c == '\n') {
+                n++;
      		break;
             }
-	} else if (rc == 0) { /*rio_read 가 0이면 EOF의미*/
+	} else if (rc == 0) {
 	    if (n == 1)
 		return 0; /* EOF, no data read */
 	    else
@@ -893,15 +892,6 @@ ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen) /*rio_t에서 data
     return n-1;
 }
 /* $end rio_readlineb */
-
-/*
-*rio_readnb: Best for reading binary data or fixed-size data, such as file contents, 
-*where you know exactly how many bytes to read. Examples include downloading a file or reading 
-*the body of an HTTP response when the content length is known.
-*rio_readlineb: Best for reading text data with variable lengths, especially when lines are 
-*delimited by newline characters. This is commonly used in protocols like HTTP or SMTP, where 
-*the headers and request lines are separated by newlines.
-*/
 
 /**********************************
  * Wrappers for robust I/O routines

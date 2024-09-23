@@ -1,7 +1,9 @@
 #include "csapp.h"
 
+// Define cache-related constants
 #define MAX_CACHE_SIZE 1049000  // Maximum cache size (in bytes)
 #define MAX_OBJECT_SIZE 102400  // Maximum size for an individual object (in bytes)
+
 // Cache block structure
 typedef struct {
     char uri[MAXLINE];           // Key: URI of the request
@@ -9,13 +11,15 @@ typedef struct {
     size_t size;                 // Size of the stored response
     int lru_count;               // Least Recently Used count for eviction
 } cache_block;
+
 // Cache structure
 typedef struct {
     cache_block *blocks;  // Pointer to dynamically allocated cache blocks
-    int cache_cnt;      // Number of cache entries currently in use
+    int cache_count;      // Number of cache entries currently in use
     int lru_tracker;      // Track the least recently used entries
     size_t current_cache_size;  // Total size of cached objects (in bytes)
 } Cache;
+
 // Global cache variable
 Cache cache;
 
@@ -31,7 +35,7 @@ void *thread(void *connfdp);
 
 /* Initialize the cache */
 void cache_init(void) {
-    cache.cache_cnt = 0;  
+    cache.cache_count = 0;  
     cache.lru_tracker = 0;  
     cache.current_cache_size = 0;  // Initialize the total cache size to 0
 
@@ -56,9 +60,10 @@ void cache_cleanup(void) {
         free(cache.blocks);
     }
 }
+
 /* Search for a URI in the cache */
 int cache_find(char *uri, char *response, size_t *response_size) {
-    for (int i = 0; i < cache.cache_cnt; i++) {
+    for (int i = 0; i < cache.cache_count; i++) {
         if (strcmp(cache.blocks[i].uri, uri) == 0) {  // URI match
             // Copy the cached binary response data into the output buffer
             memcpy(response, cache.blocks[i].response, cache.blocks[i].size);
@@ -83,27 +88,27 @@ void cache_store(char *uri, char *response, size_t size) {
     }
 
     // Store the new entry in the next available cache block
-    strcpy(cache.blocks[cache.cache_cnt].uri, uri);  // Store the URI
-    memcpy(cache.blocks[cache.cache_cnt].response, response, size);  // Store the response
-    cache.blocks[cache.cache_cnt].size = size;  // Store the size
-    cache.blocks[cache.cache_cnt].lru_count = ++cache.lru_tracker;  // Update LRU count
+    strcpy(cache.blocks[cache.cache_count].uri, uri);  // Store the URI
+    memcpy(cache.blocks[cache.cache_count].response, response, size);  // Store the response
+    cache.blocks[cache.cache_count].size = size;  // Store the size
+    cache.blocks[cache.cache_count].lru_count = ++cache.lru_tracker;  // Update LRU count
 
     // Update the total cache size
     cache.current_cache_size += size;
     
     // Increment the cache count
-    cache.cache_cnt++;
+    cache.cache_count++;
 }
 
 /* Evict the least recently used cache block */
 void cache_evict(void) {
-    if (cache.cache_cnt == 0) return;  // No need to evict if the cache is empty
+    if (cache.cache_count == 0) return;  // No need to evict if the cache is empty
 
     int lru_index = 0;
     int min_lru = cache.blocks[0].lru_count;
 
     // Find the block with the lowest LRU count (least recently used)
-    for (int i = 1; i < cache.cache_cnt; i++) {
+    for (int i = 1; i < cache.cache_count; i++) {
         if (cache.blocks[i].lru_count < min_lru) {
             lru_index = i;
             min_lru = cache.blocks[i].lru_count;
@@ -112,13 +117,17 @@ void cache_evict(void) {
 
     // Evict the block with the lowest LRU count
     printf("Evicting cache entry: %s\n", cache.blocks[lru_index].uri);
+
     // Update the total cache size
     cache.current_cache_size -= cache.blocks[lru_index].size;
+
     // Shift remaining cache blocks to remove the least used one
-    for (int i = lru_index; i < cache.cache_cnt - 1; i++) {
-        cache.blocks[i] = cache.blocks[i + 1];}
+    for (int i = lru_index; i < cache.cache_count - 1; i++) {
+        cache.blocks[i] = cache.blocks[i + 1];
+    }
+
     // Decrease the cache count
-    cache.cache_cnt--;
+    cache.cache_count--;
 }
 
 /* Proxy server main request handler (doit function) */

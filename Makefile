@@ -16,6 +16,9 @@ csapp.o: csapp.c csapp.h
 proxy.o: proxy.c csapp.h
 	$(CC) $(CFLAGS) -c proxy.c
 
+# cache.o: cache.c csapp.h
+# 	$(CC) $(CFLAGS) -c cache.c
+
 proxy: proxy.o csapp.o
 	$(CC) $(CFLAGS) proxy.o csapp.o -o proxy $(LDFLAGS)
 
